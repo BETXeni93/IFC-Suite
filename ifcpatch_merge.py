@@ -1,11 +1,12 @@
 import ifcopenshell
 import ifcopenshell.util.element
 import ifcopenshell.util.unit as unit
-from logger import global_logger
+import logger
 
 
 class Merger:
-    def __init__(self, 
+    def __init__(self,
+                 logger, 
                  file, 
                  source, 
                  merge_sites=True, 
@@ -14,6 +15,7 @@ class Merger:
                  remove_empty_containers=True
                  ):
 
+        self.logger = logger
         self.file = file
         self.source = source
         self.merge_sites = merge_sites
@@ -26,14 +28,26 @@ class Merger:
 
     def merge(self):
 
-        global_logger.printlog("  Patch start")
+        self.logger.printlog("  Patch start")
         self.existing_contexts = self.file.by_type("IfcGeometricRepresentationContext")
         original_agreggates = self.file.by_type('IfcRelAggregates')
         original_project = self.file.by_type("IfcProject")[0]
+
         original_sites = self.file.by_type("IfcSite")
-        original_site = self.file.by_type("IfcSite")[0]
+        if original_sites:
+            original_site = original_sites[0]
+        else:
+            self.logger.printlog("  No site in original model")
+            self.merge_sites = False
+            self.merge_buildings = False
+
         original_buildings = self.file.by_type("IfcBuilding")
-        original_building = self.file.by_type("IfcBuilding")[0]
+        if original_buildings:
+            original_building = self.file.by_type("IfcBuilding")[0]
+        else:
+            self.logger.printlog("  No building in original model")
+            self.merge_buildings = False
+
         original_storeys = self.file.by_type("IfcBuildingStorey")
 
 
@@ -46,41 +60,41 @@ class Merger:
 
         merged_project = self.file.add(self.source.by_type("IfcProject")[0])
         
-        global_logger.printlog("  Transfering all representation contexts")
-        global_logger.printlog("  ...")
+        self.logger.printlog("  Transfering all representation contexts")
+        self.logger.printlog("  ...")
         for element in self.source.by_type("IfcGeometricRepresentationContext"):
             new = self.file.add(element)
             self.added_contexts.add(new)
-        global_logger.printlog("  Done")
-        global_logger.printlog()
+        self.logger.printlog("  Done")
+        self.logger.printlog()
 
         elements_error_list = []
-        global_logger.printlog(f"  Transfering all elements")
-        global_logger.printlog("  ...")
+        self.logger.printlog(f"  Transfering all elements")
+        self.logger.printlog("  ...")
         for element in self.source:
-            # global_logger.printlog(f"  add elem: {element}")      
+            # self.logger.printlog(f"  add elem: {element}")      
             try:
                 self.file.add(element)
             except Exception as ex:
-                global_logger.printlog(f"  add elem: {element}")
-                global_logger.printlog(f"    ERROR: {ex}")
+                self.logger.printlog(f"  add elem: {element}")
+                self.logger.printlog(f"    ERROR: {ex}")
                 if not self.manage_transfer_error(element):
                     elements_error_list.append(element)
 
         if elements_error_list:
-            global_logger.printlog()
-            global_logger.printlog(f"  PROCESSING ERROR LIST, try to add failed elements again | length={len(elements_error_list)}")
-            global_logger.printlog()
+            self.logger.printlog()
+            self.logger.printlog(f"  PROCESSING ERROR LIST, try to add failed elements again | length={len(elements_error_list)}")
+            self.logger.printlog()
             for element in elements_error_list:
-                global_logger.printlog(f"    add elem: {element}")
+                self.logger.printlog(f"    add elem: {element}")
                 try:
                     self.file.add(element)
-                    global_logger.printlog("      Success")
+                    self.logger.printlog("      Success")
                 except Exception as ex:
-                    global_logger.printlog(f"      ERROR: {ex}")
+                    self.logger.printlog(f"      ERROR: {ex}")
 
-        global_logger.printlog("  Done")
-        global_logger.printlog()
+        self.logger.printlog("  Done")
+        self.logger.printlog()
         
         merged_sites = []
 
@@ -99,14 +113,14 @@ class Merger:
         #                 if site.Decomposes.RelatingObject.is_a("IfcProject"):
         #                     merged_sites.append(site)
         
-        global_logger.printlog(merged_sites)
+        self.logger.printlog(merged_sites)
 
         # merged_sites = self.subtract_lists(self.file.by_type("IfcSite"), original_sites)
         merged_buildings = self.subtract_lists(self.file.by_type("IfcBuilding"), original_buildings)
         merged_storeys = self.subtract_lists(self.file.by_type("IfcBuildingStorey"), original_storeys)
 
-        global_logger.printlog("  Setting IfcRelAggregates")
-        global_logger.printlog("  ...")
+        self.logger.printlog("  Setting IfcRelAggregates")
+        self.logger.printlog("  ...")
         for agr in self.file.by_type('IfcRelAggregates'):
             if agr in original_agreggates:   
 
@@ -157,35 +171,35 @@ class Merger:
             for merged_building in merged_buildings:
                 self.file.remove(merged_building)
 
-        global_logger.printlog("  Done")
-        global_logger.printlog()
+        self.logger.printlog("  Done")
+        self.logger.printlog()
 
 
-        global_logger.printlog(f"  Merging levels")
+        self.logger.printlog(f"  Merging levels")
         if self.lvls_mgmt == 0:
            self.merge_levels_by_elevation(merged_storeys, original_storeys)
         elif self.lvls_mgmt == 1:
            self.merge_levels_by_name(merged_storeys, original_storeys)
 
-        global_logger.printlog("  Done")
-        global_logger.printlog()
+        self.logger.printlog("  Done")
+        self.logger.printlog()
 
-        global_logger.printlog("  Reusing existing contexts")
-        global_logger.printlog("  ...")
+        self.logger.printlog("  Reusing existing contexts")
+        self.logger.printlog("  ...")
         self.reuse_existing_contexts()
-        global_logger.printlog("  Done")
-        global_logger.printlog()
+        self.logger.printlog("  Done")
+        self.logger.printlog()
 
         if self.remove_empty_containers:
-            global_logger.printlog("  Purging empty containers")
-            global_logger.printlog("  ...")
+            self.logger.printlog("  Purging empty containers")
+            self.logger.printlog("  ...")
             self.purge_containers()
-            global_logger.printlog("  Done")
+            self.logger.printlog("  Done")
 
         return self.file
     
     def merge_levels_by_elevation(self, merged_storeys, original_storeys):
-        global_logger.printlog("  By elevation")
+        self.logger.printlog("  By elevation")
         for merged_storey in merged_storeys:
             storey_to_merge_into = None
             if hasattr(merged_storey, "Elevation") and (merged_storey.Elevation is not None):
@@ -195,7 +209,7 @@ class Merger:
                     merged_global_elevation += loc_placement.RelativePlacement.Location.Coordinates[2]
                     loc_placement = loc_placement.PlacementRelTo
                 merged_global_elevation += loc_placement.RelativePlacement.Location.Coordinates[2]
-                global_logger.printlog(f"    Child level [Name: {merged_storey.Name} | GlobalElevation: {round(merged_global_elevation, 5)}]")
+                self.logger.printlog(f"    Child level [Name: {merged_storey.Name} | GlobalElevation: {round(merged_global_elevation, 5)}]")
 
                 for original_storey in original_storeys:
                     if hasattr(original_storey, "Elevation") and (original_storey.Elevation is not None):
@@ -205,7 +219,7 @@ class Merger:
                             original_global_elevation += loc_placement.RelativePlacement.Location.Coordinates[2]
                             loc_placement = loc_placement.PlacementRelTo
                         original_global_elevation += loc_placement.RelativePlacement.Location.Coordinates[2]
-                        # global_logger.printlog(f"    Parent level [Name: {original_storey.Name} | GlobalElevation: {round(original_global_elevation, 5)}]")
+                        # self.logger.printlog(f"    Parent level [Name: {original_storey.Name} | GlobalElevation: {round(original_global_elevation, 5)}]")
                         if (abs(original_global_elevation - merged_global_elevation) < 1e-5):
                             storey_to_merge_into = original_storey
                             break
@@ -215,7 +229,7 @@ class Merger:
                     #         break
 
             if storey_to_merge_into:
-                global_logger.printlog(f"    -> Corresponding level (same global elevation) was found in parent model: [Name: {storey_to_merge_into.Name} | Elevation: {round(storey_to_merge_into.Elevation, 5)}]")
+                self.logger.printlog(f"    -> Corresponding level (same global elevation) was found in parent model: [Name: {storey_to_merge_into.Name} | Elevation: {round(storey_to_merge_into.Elevation, 5)}]")
                 self.merge_storeys(merged_storey, storey_to_merge_into)
             # else:
             #     for original_storey in original_storeys:
@@ -237,17 +251,17 @@ class Merger:
             #                 storey_to_merge_into = original_storey
             #                 break
             #     if storey_to_merge_into:
-            #         global_logger.printlog(f"    -> Corresponding level (same global elevation) was found in parent model: [Name: {storey_to_merge_into.Name} | Elevation: {round(storey_to_merge_into.Elevation, 5)}]")
+            #         self.logger.printlog(f"    -> Corresponding level (same global elevation) was found in parent model: [Name: {storey_to_merge_into.Name} | Elevation: {round(storey_to_merge_into.Elevation, 5)}]")
             #         self.merge_storeys(merged_storey, storey_to_merge_into)
             #     else:
-            #         global_logger.printlog(f"    -> No level with same elevation was found. Child level was copied into parent model")
+            #         self.logger.printlog(f"    -> No level with same elevation was found. Child level was copied into parent model")
             else:
-                global_logger.printlog(f"    -> No level with same elevation was found. Child level was copied into parent model")
+                self.logger.printlog(f"    -> No level with same elevation was found. Child level was copied into parent model")
 
     def merge_levels_by_name(self, merged_storeys, original_storeys):
-        global_logger.printlog("  By name")
+        self.logger.printlog("  By name")
         for merged_storey in merged_storeys:
-            global_logger.printlog(f"    Child level [Name: {merged_storey.Name} | Elevation: {round(merged_storey.Elevation, 5)}]")
+            self.logger.printlog(f"    Child level [Name: {merged_storey.Name} | Elevation: {round(merged_storey.Elevation, 5)}]")
             storey_to_merge_into = None
             if hasattr(merged_storey, "Name") and merged_storey.Name:
                 for original_storey in original_storeys:
@@ -257,10 +271,10 @@ class Merger:
                             break
 
             if storey_to_merge_into:
-                global_logger.printlog(f"    -> Corresponding level (same name) was found in parent model: [Name: {storey_to_merge_into.Name} | Elevation: {round(storey_to_merge_into.Elevation, 5)}]")
+                self.logger.printlog(f"    -> Corresponding level (same name) was found in parent model: [Name: {storey_to_merge_into.Name} | Elevation: {round(storey_to_merge_into.Elevation, 5)}]")
                 self.merge_storeys(merged_storey, storey_to_merge_into)
             else:
-                global_logger.printlog(f"    -> No level with same name was found. Child level was copied into parent model")
+                self.logger.printlog(f"    -> No level with same name was found. Child level was copied into parent model")
 
     
 
@@ -278,15 +292,15 @@ class Merger:
         merged_length_unit_name = merged_prefix + merged_length_unit.Name
 
         if (original_prefix != merged_prefix) or (original_length_unit.Name != merged_length_unit.Name):
-            global_logger.printlog(f"  Converting length units from {merged_length_unit_name} to {original_length_unit_name}")
-            global_logger.printlog(f"    Converting length units in attributes ...")
+            self.logger.printlog(f"  Converting length units from {merged_length_unit_name} to {original_length_unit_name}")
+            self.logger.printlog(f"    Converting length units in attributes ...")
             self.convert_length_units_of_all_elements(self.source, merged_length_unit, original_length_unit)
-            global_logger.printlog(f"    Converting length units in properties ...")
+            self.logger.printlog(f"    Converting length units in properties ...")
             self.convert_length_units_in_properties(self.source, merged_length_unit, original_length_unit)
-            global_logger.printlog("  Done")
-            global_logger.printlog()
+            self.logger.printlog("  Done")
+            self.logger.printlog()
         else:
-            global_logger.printlog(f"  No need to convert length units (same units in both models: {merged_length_unit_name})")
+            self.logger.printlog(f"  No need to convert length units (same units in both models: {merged_length_unit_name})")
 
 
     def reuse_existing_contexts(self):
@@ -395,13 +409,13 @@ class Merger:
             # merged_length_unit = self.dict_merged_prj_units["LENGTHUNIT"]
             # merged_global_X = unit.convert_unit(merged_global_X, merged_length_unit, original_length_unit)
             # merged_global_Y = unit.convert_unit(merged_global_Y, merged_length_unit, original_length_unit)
-            # global_logger.printlog(f"    merged_global_X={merged_global_X} | merged_global_Y={merged_global_Y}")
-            # global_logger.printlog(f"    original_global_X={original_global_X} | original_global_Y={original_global_Y}")
+            # self.logger.printlog(f"    merged_global_X={merged_global_X} | merged_global_Y={merged_global_Y}")
+            # self.logger.printlog(f"    original_global_X={original_global_X} | original_global_Y={original_global_Y}")
 
             deltaX_between_original_and_merged_storeys = merged_global_X - original_global_X
             deltaY_between_original_and_merged_storeys = merged_global_Y - original_global_Y
             if deltaX_between_original_and_merged_storeys or deltaY_between_original_and_merged_storeys:
-                global_logger.printlog(f"    deltaX={deltaX_between_original_and_merged_storeys} | deltaY={deltaY_between_original_and_merged_storeys}")
+                self.logger.printlog(f"    deltaX={deltaX_between_original_and_merged_storeys} | deltaY={deltaY_between_original_and_merged_storeys}")
 
             merged_rel_placements = merged_storey.ObjectPlacement.ReferencedByPlacements
             for rel_placement in merged_rel_placements:
@@ -455,28 +469,28 @@ class Merger:
         if element.is_a("IfcRelDefinesByType"):
             self.correct_type_transfer_error(element.RelatingType)
             self.file.add(element)
-            global_logger.printlog("    Success")
+            self.logger.printlog("    Success")
             return True
         if element.is_a("IfcTypeProduct"):
             self.correct_type_transfer_error(element)
             self.file.add(element)
-            global_logger.printlog("    Success")
+            self.logger.printlog("    Success")
             return True
         if element.is_a("IfcBuildingElementProxy"):
             self.correct_buildingelementproxy_transfer_error(element)
             self.file.add(element)
-            global_logger.printlog("    Success")
+            self.logger.printlog("    Success")
             return True
         # if element.is_a("IfcBuildingElementProxyType"):
         #     for object_type_of in type.ObjectTypeOf:
         #         for rel_obj in object_type_of.RelatedObjects:
         #             self.correct_buildingelementproxy_transfer_error(rel_obj)
         #     self.file.add(element)
-        #     global_logger.printlog("    Success")
+        #     self.logger.printlog("    Success")
         return False
     
     def correct_type_transfer_error(self, type):
-        global_logger.printlog(f"    Error with Type #{type.id()}={type.is_a()} | Trying to set the PredefinedType as USERDEFINED then process")
+        self.logger.printlog(f"    Error with Type #{type.id()}={type.is_a()} | Trying to set the PredefinedType as USERDEFINED then process")
         type.PredefinedType = "USERDEFINED"
 
         if type.is_a("IfcBuildingElementProxyType"):
@@ -487,7 +501,7 @@ class Merger:
                         rel_obj.CompositionType = "ELEMENT"
 
     def correct_buildingelementproxy_transfer_error(self, element):
-        global_logger.printlog(f"    Error with Element #{element.id()}={element.is_a()} | Trying to set the CompositionType as ELEMENT then process")
+        self.logger.printlog(f"    Error with Element #{element.id()}={element.is_a()} | Trying to set the CompositionType as ELEMENT then process")
         comp_type_values = {"ELEMENT", "COMPLEX", "PARTIAL"}
         if element.CompositionType not in comp_type_values:
             element.CompositionType = "ELEMENT"
@@ -509,7 +523,7 @@ class Merger:
             for element in model.by_type(ifc_class):
                 for attribute in attributes:
                     if element.is_a() != ifc_class:
-                        global_logger.printlog(f"      Avoid converting units twice for class: {ifc_class} - (#{element.id()}={element.is_a()} | {attribute} | {getattr(element,attribute)})")
+                        self.logger.printlog(f"      Avoid converting units twice for class: {ifc_class} - (#{element.id()}={element.is_a()} | {attribute} | {getattr(element,attribute)})")
                         continue
                     value = getattr(element,attribute)
                     if value is None:
@@ -526,15 +540,15 @@ class Merger:
                     elif isinstance(value,float):
                         setattr(element, attribute, unit.convert_unit(getattr(element,attribute), merged_unit, original_unit))
                     else:
-                        # global_logger.printlog(type(value))
+                        # self.logger.printlog(type(value))
                         continue
 
-                    # global_logger.printlog(f"#{element.id()}={element.is_a()} | {attribute} | {getattr(element,attribute)}")
+                    # self.logger.printlog(f"#{element.id()}={element.is_a()} | {attribute} | {getattr(element,attribute)}")
     
     def convert_length_units_in_properties(self, model, merged_unit, original_unit):
         for element in model.by_type("IfcPropertySingleValue"):
             if element.NominalValue and element.NominalValue.is_a("IfcLengthMeasure"):
-                # global_logger.printlog(f"      {element.Name} | {element.NominalValue}")
+                # self.logger.printlog(f"      {element.Name} | {element.NominalValue}")
                 element.NominalValue.wrappedValue = unit.convert_unit(element.NominalValue.wrappedValue, merged_unit, original_unit)
         # Les quantités semblent déjà gérées
 
@@ -544,8 +558,7 @@ class Merger:
         if unit_assignment:
             for unit in unit_assignment.Units or []:
                 if unit.is_a("IfcNamedUnit"):
-                    new_dict[unit.UnitType] = ifcopenshell.util.unit.get_project_unit(
-                        model, unit.UnitType)
+                    new_dict[unit.UnitType] = ifcopenshell.util.unit.get_project_unit(model, unit.UnitType)
         return new_dict
             
     def subtract_lists(self, main_list, subtract_list):

@@ -12,10 +12,11 @@ class Logger:
         self.output_folder = ""
         self.output_path = ""
         self.print_details = False
+        self.no_output_file = False
         self.disabled = False
 
     def initiate_logfile(self, output_folder, print_details=False):
-        if not self.disabled:
+        if not self.no_output_file:
             self.start_time = time.time()
             self.output_folder = output_folder
             self.output_path = os.path.join(output_folder, "log.txt")
@@ -25,7 +26,7 @@ class Logger:
             self.print_details = print_details
 
     def get_logfile_content(self):
-        if not self.disabled:
+        if not self.no_output_file:
             try:
                 return self.log_file.read()
             except:
@@ -40,6 +41,8 @@ class Logger:
         # return f"size in bytes: {size}"
 
     def printlog(self, txt="", title=False):
+        if self.disabled:
+            return
         if not isinstance(txt, str):
             txt = str(txt)
         end_time = time.time()
@@ -49,7 +52,7 @@ class Logger:
         hundredths *= 100
         formatted_time = f"[{int(minutes):02}:{int(seconds):02}:{int(hundredths):02}]"
 
-        if self.disabled:
+        if self.no_output_file:
             print(f"{formatted_time}  {txt}")
         else:
             separator = "-" * len(txt)
@@ -64,17 +67,17 @@ class Logger:
                 self.printlog()
 
     def printlog_details(self, txt="", title=False):
-        if not self.disabled:
+        if self.disabled:         
+            return
+        if not self.no_output_file:
             if self.print_details:
                 self.printlog(txt, title)
 
 
     def close_log_file(self):
-        if not self.disabled:
+        if not self.no_output_file:
             self.printlog(f"Log file was saved to <{self.output_path}>")
             self.log_file.close()
             # with open(output_folder + "log.txt", "w", newline="", encoding="utf-8") as file:
             #     file.write(self.log_text)
 
-
-global_logger = Logger()
