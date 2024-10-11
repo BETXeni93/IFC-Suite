@@ -1,10 +1,10 @@
 # IFC-Suite
-Your shiny new IFC toolbox
-
 ## About
-This is the python core of the [IFC Suite application](https://ifcsuite.inex/fr), ran by [INEX BET](https://www.inex/fr).
+This is the python core of the [IFC Suite application](https://ifcsuite.inex.fr), ran by [INEX BET](https://www.inex.fr).
 IFC Suite is a free set of tools that helps you manage IFC files.
 We advocate for the IFC format as it ensures standardized, efficient data sharing across diverse BIM and CAD software.
+
+## Ifcopenshell
 IFC editing features are powered by the [IfcOpenShell](https://github.com/IfcOpenShell/IfcOpenShell) python library. Big thanks to everyone who contributes to this project!
 
 ## Quickstart
